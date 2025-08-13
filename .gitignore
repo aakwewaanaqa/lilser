@@ -2,3 +2,5 @@
 **/obj
 *.env
 *.secret
+__debug_*
+.DS_Store
