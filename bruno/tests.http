@@ -1,0 +1,11 @@
+### GET request to example server
+
+PUT http://localhost/file?filename=test.txt
+
+< test.txt
+
+### Probing for lilser healthyness
+
+GET http://localhost/lilser/health
+
+###

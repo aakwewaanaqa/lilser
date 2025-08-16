@@ -6,6 +6,8 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"ponito/lilser/apis"
 	"ponito/lilser/helper"
 )
 
@@ -20,26 +22,37 @@ func printIp(port *int) {
 		return
 	}
 
-	log.Printf("Your serving ip is %s:%d", ip, *port)
+	log.Printf("Serving ip at %s:%d", ip, *port)
+	log.Printf("Please visit http://%s:%d for files", ip, *port)
 }
 
 func main() {
 	var (
-		port int
-		addr string
+		bin  = false
+		port = 80
+		addr = fmt.Sprintf("0.0.0.0:%d", port)
+		err  error
 	)
 
-	flag.IntVar(&port, "p", 8080, "the port to forward with")
+	flag.BoolVar(&bin, "b", false, "run in bin directory")
+	flag.IntVar(&port, "p", port, "the port to forward with")
 	flag.Parse()
 
-	fileServer := http.FileServer(http.Dir("."))
-	http.Handle("/", fileServer)
+	if bin {
+		log.Println("Running in bin directory")
+		if err = os.Chdir("bin"); err != nil {
+			panic(err)
+		}
+	}
 
-	addr = fmt.Sprintf("0.0.0.0:%d", port)
+	apis.UseIndex()
+	apis.UseFile()
+	apis.UseProbe()
 
 	go printIp(&port)
 
-	if err := http.ListenAndServe(addr, nil); err != nil {
-		log.Fatal(err)
+	addr = fmt.Sprintf("0.0.0.0:%d", port)
+	if err = http.ListenAndServe(addr, nil); err != nil {
+		panic(err)
 	}
 }

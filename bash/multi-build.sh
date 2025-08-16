@@ -1,15 +1,7 @@
-#!/bin/zsh
+#!/bin/bash
 
 cd ../src
 
-GOOS="windows"
-GOARCH="amd"
-go build -o bin/windows/lilser
-
-GOOS="linux"
-GOARCH="amd"
-go build -o bin/linux/lilser
-
-GOOS="darwin"
-GOARCH="arm"
-go build -o bin/mac/lilser
+GOOS=windows GOARCH=amd64 go build -o ./bin/windows/lilser.exe
+GOOS=linux GOARCH=amd64 go build -o ./bin/linux/lilser
+GOOS=darwin GOARCH=arm64 go build -o ./bin/mac/lilser

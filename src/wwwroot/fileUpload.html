@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<body>
+<h1>Upload a file</h1>
+<input type="file" name="file" required/>
+<button id="upload">Upload</button>
+</body>
+<script>
+    function putFile() {
+        const file = document.querySelector('input[type="file"]').files[0];
+        fetch('http://localhost/file?filename=' + file.name, {
+            method: 'PUT',
+            body: file,
+        })
+    }
+
+    document.getElementById('upload').onclick = e => {
+        putFile();
+    }
+</script>
+</html>
