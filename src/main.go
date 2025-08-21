@@ -28,11 +28,16 @@ func printIp(port *int) {
 
 func main() {
 	var (
-		bin  = false
-		port = 80
-		addr = fmt.Sprintf("0.0.0.0:%d", port)
-		err  error
+		bin            = false
+		port           = 80
+		addr           = fmt.Sprintf("0.0.0.0:%d", port)
+		useRevProxyApi = "http://localhost:8080"
+		useFileApi     = false
+		err            error
 	)
+
+	flag.StringVar(&useRevProxyApi, "rev-proxy", useRevProxyApi, "to do reverse proxy")
+	flag.BoolVar(&useFileApi, "file", false, "use shared files")
 
 	flag.BoolVar(&bin, "b", false, "run in bin directory")
 	flag.IntVar(&port, "p", port, "the port to forward with")
@@ -45,9 +50,16 @@ func main() {
 		}
 	}
 
-	apis.UseIndex()
-	apis.UseFile()
+	if useFileApi {
+		var index = "/file?filename=."
+		apis.UseIndex(index)
+	}
+
 	apis.UseProbe()
+
+	if useRevProxyApi != "" {
+		apis.UseReverseProxy(useRevProxyApi, port)
+	}
 
 	go printIp(&port)
 

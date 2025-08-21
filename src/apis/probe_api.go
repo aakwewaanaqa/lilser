@@ -7,5 +7,5 @@ var probe = func(w http.ResponseWriter, r *http.Request) {
 }
 
 func UseProbe() {
-	http.HandleFunc("/health/lilser", probe)
+	http.HandleFunc("/probe/lilser", probe)
 }

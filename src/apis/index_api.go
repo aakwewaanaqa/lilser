@@ -2,7 +2,6 @@ package apis
 
 import (
 	"net/http"
-	"ponito/lilser/apis/helpers"
 )
 
 var toFile = func(w http.ResponseWriter, r *http.Request) (state int, err error) {
@@ -10,6 +9,8 @@ var toFile = func(w http.ResponseWriter, r *http.Request) (state int, err error)
 	return 200, nil
 }
 
-func UseIndex() {
-	http.HandleFunc("/", helpers.Wrap(toFile))
+func UseIndex(url string) {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, url, http.StatusFound)
+	})
 }
