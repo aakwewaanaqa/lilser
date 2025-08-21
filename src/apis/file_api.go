@@ -9,8 +9,13 @@ import (
 	"path/filepath"
 	"ponito/lilser/apis/helpers"
 	"ponito/lilser/apis/helpers/urling"
+	"ponito/lilser/apis/templates"
 	"sort"
+	"strings"
 )
+
+var dirTmpl = template.Must(template.New("dirPage").Parse(templates.DirPage))
+var editorTmpl = template.Must(template.New("editorPage").Parse(templates.EditorPage))
 
 func printWorkingDir() {
 	var (
@@ -170,7 +175,7 @@ var getFile = func(w http.ResponseWriter, r *http.Request) (state int, err error
 		sort.SliceStable(views, func(i, j int) bool { return views[i].Name < views[j].Name })
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_ = dirListTmpl.Execute(w, struct {
+		_ = dirTmpl.Execute(w, struct {
 			Path    string
 			Entries []dirEntryView
 		}{
@@ -178,9 +183,39 @@ var getFile = func(w http.ResponseWriter, r *http.Request) (state int, err error
 			Entries: views,
 		})
 	} else {
+		// When browser navigates (Accept: text/html), and the file looks like text/code,
+		// serve the editor page. Otherwise, serve the raw file.
+		if strings.Contains(r.Header.Get("Accept"), "text/html") && isTextLike(filename) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_ = editorTmpl.Execute(w, nil)
+			return
+		}
 		http.ServeFile(w, r, filename)
 	}
 	return
+}
+
+// minimal text/code extension set used to decide when to show the editor UI
+var textExts = map[string]struct{}{
+	".txt": {}, ".md": {}, ".markdown": {}, ".log": {},
+	".json": {}, ".jsonc": {}, ".yaml": {}, ".yml": {}, ".toml": {}, ".ini": {}, ".conf": {}, ".config": {},
+	".csv": {}, ".tsv": {}, ".sql": {},
+	".js": {}, ".mjs": {}, ".cjs": {}, ".ts": {}, ".tsx": {}, ".jsx": {}, ".css": {}, ".scss": {}, ".less": {}, ".html": {}, ".htm": {}, ".xml": {},
+	".go": {}, ".py": {}, ".rb": {}, ".rs": {}, ".java": {}, ".kt": {}, ".kts": {}, ".c": {}, ".h": {}, ".cpp": {}, ".cc": {}, ".hpp": {}, ".cs": {},
+	".sh": {}, ".bash": {}, ".zsh": {}, ".fish": {}, ".ps1": {}, ".bat": {},
+}
+
+func isTextLike(name string) bool {
+	base := filepath.Base(name)
+	if base == "Makefile" || base == "Dockerfile" { // common text files without extensions
+		return true
+	}
+	ext := strings.ToLower(filepath.Ext(base))
+	if ext == "" {
+		return false
+	}
+	_, ok := textExts[ext]
+	return ok
 }
 
 func UseFile() {
@@ -189,43 +224,3 @@ func UseFile() {
 	http.HandleFunc("PUT /file", helpers.Wrap(putFile))
 	http.HandleFunc("GET /file", helpers.Wrap(getFile))
 }
-
-var dirListTmpl = template.Must(template.New("dirlist").Parse(`<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Index of {{.Path}}</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; padding: 16px; }
-    ul { list-style: none; padding-left: 0; }
-    li { margin: 4px 0; }
-    a { text-decoration: none; }
-  </style>
-</head>
-<body>
-  <h3>Index of {{.Path}}</h3>
-  <ul>
-    {{range .Entries}}
-      <li><a href="?filename={{$.Path}}/{{.Name}}">{{.Name}}{{if .IsDir}}/{{end}}</a></li>
-    {{end}}
-  </ul>
-  <div>
-    <input id="file" type="file" name="file" required />
-  </div>
-  <script>
-    (function(){
-      var input = document.getElementById('file');
-      input.addEventListener('change', function(){
-        var f = input.files[0];
-        if(!f) return;
-        var p = '{{.Path}}';
-        var url = '?filename=' + encodeURIComponent(p) + '/' + encodeURIComponent(f.name);
-        fetch(url, { method: 'PUT', body: f })
-          .then(function(r){ if(!r.ok) throw new Error(r.statusText); })
-          .then(function(){ window.location.reload(); })
-          .catch(function(e){ console.log(e); alert('Upload failed: ' + e); });
-      });
-    })();
-  </script>
-</body>
-</html>`))

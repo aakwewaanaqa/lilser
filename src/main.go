@@ -31,7 +31,7 @@ func main() {
 		bin            = false
 		port           = 80
 		addr           = fmt.Sprintf("0.0.0.0:%d", port)
-		useRevProxyApi = "http://localhost:8080"
+		useRevProxyApi = ""
 		useFileApi     = false
 		err            error
 	)
@@ -53,6 +53,7 @@ func main() {
 	if useFileApi {
 		var index = "/file?filename=."
 		apis.UseIndex(index)
+		apis.UseFile()
 	}
 
 	apis.UseProbe()
