@@ -1,6 +1,7 @@
 package apis
 
 import (
+	_ "embed"
 	"html/template"
 	"io"
 	"log"
@@ -9,13 +10,18 @@ import (
 	"path/filepath"
 	"ponito/lilser/apis/helpers"
 	"ponito/lilser/apis/helpers/urling"
-	"ponito/lilser/apis/templates"
 	"sort"
 	"strings"
 )
 
-var dirTmpl = template.Must(template.New("dirPage").Parse(templates.DirPage))
-var editorTmpl = template.Must(template.New("editorPage").Parse(templates.EditorPage))
+var (
+	//go:embed templates/dir_page.gohtml
+	dirPage string
+	//go:embed templates/editor_page.gohtml
+	editorPage string
+	dirTmpl    = template.Must(template.New("dirPage").Parse(dirPage))
+	editorTmpl = template.Must(template.New("editorPage").Parse(editorPage))
+)
 
 func printWorkingDir() {
 	var (
@@ -218,9 +224,11 @@ func isTextLike(name string) bool {
 	return ok
 }
 
-func UseFile() {
+func UseFile() (index string) {
 	go printWorkingDir()
 
 	http.HandleFunc("PUT /file", helpers.Wrap(putFile))
 	http.HandleFunc("GET /file", helpers.Wrap(getFile))
+	index = "/file?filename=."
+	return
 }

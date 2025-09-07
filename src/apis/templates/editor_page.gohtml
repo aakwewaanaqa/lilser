@@ -1,0 +1,171 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Text Editor</title>
+    <style>
+        :root { color-scheme: light dark; }
+        body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background: canvas; color: canvastext; }
+        header { position: sticky; top: 0; z-index: 10; background: canvas; border-bottom: 1px solid #8883; padding: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        header .path { font-weight: 600; word-break: break-all; }
+        header .spacer { flex: 1; }
+        button, select, input[type="checkbox"] { font: inherit; }
+        textarea { width: 100%; height: calc(100vh - 56px); box-sizing: border-box; padding: 12px; border: 0; outline: none; resize: none; background: canvas; color: canvastext; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 14px; line-height: 1.5; }
+        .status { position: fixed; bottom: 12px; right: 12px; background: color-mix(in oklab, canvas, canvastext 10%); color: canvastext; padding: 6px 10px; border-radius: 6px; opacity: 0; transform: translateY(6px); transition: opacity .2s, transform .2s; pointer-events: none; }
+        .status.show { opacity: 1; transform: translateY(0); }
+        .warn { color: #b45309; }
+        .muted { opacity: .7; }
+        a { color: inherit; }
+    </style>
+</head>
+<body>
+<header>
+    <span class="path" id="path">Loading…</span>
+    <span class="muted" id="type"></span>
+    <span class="spacer"></span>
+    <label title="Toggle soft wrap"><input type="checkbox" id="wrap" checked> Wrap</label>
+    <button id="reload">Reload</button>
+    <button id="save">Save</button>
+    <button id="download">Download</button>
+    <a id="openRaw" href="#" target="_blank" rel="noopener">Open raw</a>
+    <a id="openDir" href="#" rel="noopener">Open folder</a>
+</header>
+<textarea id="editor" spellcheck="false" aria-label="Plain text editor"></textarea>
+<div class="status" id="status">Ready</div>
+
+<script>
+    (function(){
+        const qs = new URLSearchParams(location.search);
+        const filename = qs.get('filename');
+        const editor = document.getElementById('editor');
+        const statusEl = document.getElementById('status');
+        const pathEl = document.getElementById('path');
+        const typeEl = document.getElementById('type');
+        const wrap = document.getElementById('wrap');
+        const openRaw = document.getElementById('openRaw');
+        const openDir = document.getElementById('openDir');
+
+        if (!filename) {
+            showStatus('Missing ?filename=… in URL', true);
+            pathEl.textContent = 'No file selected';
+            editor.value = '';
+            editor.disabled = true;
+            return;
+        }
+
+        pathEl.textContent = filename;
+        openRaw.href = '/file?filename=' + encodeURIComponent(filename);
+        openDir.href = '/file?filename=' + encodeURIComponent(parentDir(filename));
+
+        // Allowed extensions for editing as text/script
+        const TEXT_EXTS = new Set(['.txt','.md','.markdown','.json','.jsonc','.js','.mjs','.cjs','.ts','.tsx','.jsx','.css','.scss','.less','.html','.htm','.xml','.yml','.yaml','.toml','.ini','.conf','.config','.log','.csv','.tsv','.sql','.go','.py','.rb','.rs','.java','.kt','.kts','.c','.h','.cpp','.cc','.hpp','.cs','.sh','.bash','.zsh','.fish','.ps1','.bat','.dockerfile','.makefile','Makefile']);
+
+        function extOf(name){
+            const m = /(^|\/)Makefile$/i.test(name) ? 'Makefile' : (name.toLowerCase().match(/\.[^.\/]+$/)?.[0] || '');
+            return m;
+        }
+
+        function parentDir(path){
+            const i = path.lastIndexOf('/');
+            if (i <= 0) return '.';
+            return path.slice(0, i);
+        }
+
+        function showStatus(msg, warn=false){
+            statusEl.textContent = msg;
+            statusEl.classList.toggle('show', true);
+            statusEl.classList.toggle('warn', !!warn);
+            clearTimeout(showStatus._t);
+            showStatus._t = setTimeout(()=>statusEl.classList.remove('show'), 1500);
+        }
+
+        // Wrap toggle
+        wrap.onchange = () => editor.style.whiteSpace = wrap.checked ? 'pre-wrap' : 'pre';
+        wrap.dispatchEvent(new Event('change'));
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                save();
+            }
+        });
+
+        // Buttons
+        document.getElementById('reload').onclick = () => load();
+        document.getElementById('save').onclick = () => save();
+        document.getElementById('download').onclick = () => download();
+
+        // Load file
+        async function load(){
+            showStatus('Loading…');
+            const url = '/file?filename=' + encodeURIComponent(filename);
+            let r;
+            try {
+                r = await fetch(url, { cache: 'no-store' });
+            } catch (e) {
+                showStatus('Network error: ' + e, true);
+                return;
+            }
+            if (!r.ok) { showStatus('Load failed: ' + r.status + ' ' + r.statusText, true); return; }
+
+            const ctype = r.headers.get('content-type') || '';
+            typeEl.textContent = '(' + (ctype || 'unknown type') + ')';
+
+            // Only proceed if text-like by header or extension
+            const byHeader = /^text\//i.test(ctype) || /(json|xml|javascript)/i.test(ctype);
+            const byExt = TEXT_EXTS.has(extOf(filename));
+
+            const buf = await r.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            // Heuristic: reject binary if contains NUL or too many non-printables
+            let hasNul = false, nonPrintable = 0;
+            for (let i=0; i<bytes.length && i<4096; i++) {
+                const b = bytes[i];
+                if (b === 0) { hasNul = true; break; }
+                if (b < 9 || (b > 13 && b < 32)) nonPrintable++;
+            }
+            const binaryHeuristic = hasNul || (nonPrintable > 64);
+            if (!(byHeader || byExt) && binaryHeuristic) {
+                editor.value = '';
+                editor.disabled = true;
+                showStatus('This file does not look like text; refusing to edit.', true);
+                return;
+            }
+
+            // Decode as UTF-8
+            const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+            editor.disabled = false;
+            editor.value = text;
+            showStatus('Loaded');
+        }
+
+        async function save(){
+            showStatus('Saving…');
+            const url = '/file?filename=' + encodeURIComponent(filename);
+            const blob = new Blob([editor.value], { type: 'text/plain; charset=utf-8' });
+            let r;
+            try {
+                r = await fetch(url, { method: 'PUT', body: blob });
+            } catch (e) {
+                showStatus('Network error: ' + e, true);
+                return;
+            }
+            if (!r.ok) { showStatus('Save failed: ' + r.status + ' ' + r.statusText, true); return; }
+            showStatus('Saved');
+        }
+
+        function download(){
+            const a = document.createElement('a');
+            a.download = filename.split('/').pop() || 'document.txt';
+            a.href = URL.createObjectURL(new Blob([editor.value], { type: 'text/plain' }));
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        load();
+    })();
+</script>
+</body>
+</html>

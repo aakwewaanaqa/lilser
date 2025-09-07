@@ -2,7 +2,7 @@
   <configuration default="false" name="lilser_file" type="GoApplicationRunConfiguration" factoryName="Go Application">
     <module name="lilser" />
     <working_directory value="$PROJECT_DIR$" />
-    <parameters value="-file -p 1347" />
+    <parameters value="-file -probe -p 1347" />
     <kind value="PACKAGE" />
     <package value="ponito/lilser" />
     <directory value="$PROJECT_DIR$" />

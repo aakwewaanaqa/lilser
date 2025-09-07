@@ -23,24 +23,25 @@ func printIp(port *int) {
 	}
 
 	log.Printf("Serving ip at %s:%d", ip, *port)
-	log.Printf("Please visit http://%s:%d for files", ip, *port)
+	log.Printf("Please visit http://%s:%d", ip, *port)
 }
 
 func main() {
 	var (
 		bin            = false
-		port           = 80
+		port           = 1347
 		addr           = fmt.Sprintf("0.0.0.0:%d", port)
 		useRevProxyApi = ""
 		useFileApi     = false
+		useProbe       = false
 		err            error
 	)
 
-	flag.StringVar(&useRevProxyApi, "rev-proxy", useRevProxyApi, "to do reverse proxy")
-	flag.BoolVar(&useFileApi, "file", false, "use shared files")
-
-	flag.BoolVar(&bin, "b", false, "run in bin directory")
+	flag.BoolVar(&bin, "b", bin, "run in bin directory")
 	flag.IntVar(&port, "p", port, "the port to forward with")
+	flag.StringVar(&useRevProxyApi, "rev-proxy", useRevProxyApi, "to do reverse proxy")
+	flag.BoolVar(&useFileApi, "file", useFileApi, "use shared files")
+	flag.BoolVar(&useProbe, "probe", useProbe, "use shared files")
 	flag.Parse()
 
 	if bin {
@@ -51,12 +52,16 @@ func main() {
 	}
 
 	if useFileApi {
-		var index = "/file?filename=."
-		apis.UseIndex(index)
-		apis.UseFile()
+		var index = apis.UseFile()
+		if !useProbe {
+			apis.UseIndex(index)
+		}
 	}
 
-	apis.UseProbe()
+	if useProbe {
+		var index = apis.UseProbe()
+		apis.UseIndex(index)
+	}
 
 	if useRevProxyApi != "" {
 		apis.UseReverseProxy(useRevProxyApi, port)
